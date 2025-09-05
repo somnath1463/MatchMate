@@ -110,6 +110,7 @@ final class MatchListViewModel: ObservableObject {
                 shouldProceed = true
             }
         }
+
         guard shouldProceed else {
             print("[VM] Ignoring duplicate update for \(userId) -> \(status)")
             return
@@ -169,6 +170,17 @@ final class MatchListViewModel: ObservableObject {
                     self.updatingIds.remove(userId)
                 }
                 print("[VM] Released updating lock for \(userId)")
+            }
+        }
+    }
+
+    func clearAllUsers() {
+        persistence.clearAllUsers {
+            DispatchQueue.main.async {
+                self.profiles.removeAll()
+                self.currentPage = 1
+                self.hasMorePages = true
+                self.fetchPage(1)
             }
         }
     }

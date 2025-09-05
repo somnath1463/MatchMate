@@ -115,3 +115,29 @@ extension PersistenceController {
         return 0
     }
 }
+
+// MARK: - Deletion of CoreData Users
+
+extension PersistenceController {
+    func clearAllUsers(completion: (() -> Void)? = nil) {
+        let ctx = container.viewContext
+        ctx.perform {
+            let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "UserProfile")
+            let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+            
+            do {
+                try ctx.execute(deleteRequest)
+                try ctx.save()
+                print("[CoreData] Cleared all UserProfile records")
+                DispatchQueue.main.async {
+                    completion?()
+                }
+            } catch {
+                print("[CoreData] Failed to clear users: \(error)")
+                DispatchQueue.main.async {
+                    completion?()
+                }
+            }
+        }
+    }
+}

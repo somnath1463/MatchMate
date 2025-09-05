@@ -33,6 +33,17 @@ struct MatchListView: View {
             .listStyle(.plain)
             .buttonStyle(.plain)
             .navigationTitle("MatchMate")
+            .toolbar {
+
+                // Added toolbar item to clear the users from CoreData
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        viewModel.clearAllUsers()
+                    }) {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
             .alert(item: Binding(
                 get: { viewModel.errorMessage.map { ErrorWrapper(message: $0) } },
                 set: { _ in viewModel.errorMessage = nil }
