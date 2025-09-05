@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  MatchMate
 //
-//  Created by Somnath Mandhare on 05/09/25.
+//  Created by Somnath Mandhare on 04/09/25.
 //
 
 import SwiftUI
@@ -17,8 +17,4 @@ struct ContentView: View {
         }
         .padding()
     }
-}
-
-#Preview {
-    ContentView()
 }
