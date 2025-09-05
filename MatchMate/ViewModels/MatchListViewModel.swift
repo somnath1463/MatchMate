@@ -31,6 +31,9 @@ final class MatchListViewModel: ObservableObject {
 
     init() {
         loadCachedProfiles()
+        let lastPage = persistence.getMaxFetchedPage()
+        currentPage = lastPage > 0 ? lastPage : 1
+        fetchPage(currentPage)
     }
 
     // MARK: - Data loading
@@ -78,6 +81,13 @@ final class MatchListViewModel: ObservableObject {
                 }
             })
             .store(in: &cancellables)
+    }
+
+    func fetchNextPageIfNeeded(currentItem: UserProfileViewData?) {
+        guard let item = currentItem else { return }
+        if profiles.last?.id == item.id {
+            fetchPage(currentPage + 1)
+        }
     }
 
     // MARK: - Accept / Decline

@@ -96,3 +96,22 @@ final class PersistenceController {
         }
     }
 }
+
+// MARK: Pagination Helper
+
+extension PersistenceController {
+    func getMaxFetchedPage() -> Int {
+        let ctx = container.viewContext
+        let fetch = NSFetchRequest<NSDictionary>(entityName: "UserProfile")
+        fetch.resultType = .dictionaryResultType
+        fetch.propertiesToFetch = ["fetchedPage"]
+        fetch.sortDescriptors = [NSSortDescriptor(key: "fetchedPage", ascending: false)]
+        fetch.fetchLimit = 1
+        if let result = try? ctx.fetch(fetch),
+           let dict = result.first,
+           let maxPage = dict["fetchedPage"] as? Int {
+            return maxPage
+        }
+        return 0
+    }
+}

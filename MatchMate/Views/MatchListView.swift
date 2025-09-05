@@ -19,6 +19,9 @@ struct MatchListView: View {
                         acceptAction: viewModel.accept,
                         declineAction: viewModel.decline
                     )
+                    .onAppear {
+                        viewModel.fetchNextPageIfNeeded(currentItem: profile)
+                    }
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
