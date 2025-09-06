@@ -45,12 +45,6 @@ final class MatchListViewModel: ObservableObject {
         do {
             let results = try ctx.fetch(fetch)
             self.profiles = results.map { UserProfileViewData(managedObject: $0) }
-            for profile in results {
-                if let id = profile.value(forKey: "id") as? String,
-                   let st = (profile.value(forKey: "status") as? NSNumber)?.int16Value {
-                    print("Fetched profile \(id) has status \(st)")
-                }
-            }
         } catch {
             print("CoreData fetch error: \(error)")
         }
@@ -93,11 +87,9 @@ final class MatchListViewModel: ObservableObject {
     // MARK: - Accept / Decline
 
     func accept(_ userId: String) {
-        print("[VM] accept() called for \(userId)")
         updateStatus(userId: userId, status: 1)
     }
     func decline(_ userId: String) {
-        print("[VM] decline() called for \(userId)")
         updateStatus(userId: userId, status: 2)
     }
 

@@ -5,6 +5,7 @@
 //  Created by Somnath Mandhare on 04/09/25.
 //
 
+import Kingfisher
 import SwiftUI
 
 struct MatchCardView: View {
@@ -34,26 +35,20 @@ struct MatchCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AsyncImage(url: URL(string: profile.pictureURL)) { phase in
-                    switch phase {
-                    case .empty:
+                KFImage(URL(string: profile.pictureURL))
+                    .placeholder {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(Color.gray.opacity(0.2))
                             .frame(width: 90, height: 110)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 90, height: 110)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    case .failure:
-                        Image(systemName: "person.crop.square")
-                            .resizable()
-                            .frame(width: 90, height: 110)
-                    @unknown default:
-                        EmptyView()
                     }
-                }
+                    .retry(maxCount: 3, interval: .seconds(2))
+                    .onFailure { error in
+                        print("Image load failed: \(error)")
+                    }
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 90, height: 110)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(profile.firstName) \(profile.lastName)")
