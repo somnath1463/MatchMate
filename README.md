@@ -18,37 +18,42 @@ It demonstrates modern SwiftUI architecture, offline persistence with Core Data,
 
 The app displays a list of user profiles and allows the user to accept or decline each match. User actions are stored persistently so decisions remain intact across app launches.
 
-## Features
+## 🔹 Core Functionality
 
-🔹 Core Functionality
-- User List with Pagination
-    - Profiles fetched from randomuser.me API.
-    - Supports infinite scroll pagination.
-    - Continues from last saved page when reopening the app.
+- **User List with Pagination**
+  - Profiles fetched from [randomuser.me](https://randomuser.me) API.
+  - Supports infinite scroll pagination.
+  - Continues from last saved page when reopening the app.
 
-- Offline Persistence
-    - Profiles are cached in Core Data.
-    - Decisions (accept/decline) are preserved across sessions.
-    - App loads cached profiles instantly on launch.
+- **Offline Persistence**
+  - Profiles are cached in Core Data.
+  - Decisions (accept/decline) are preserved across sessions.
+  - App loads cached profiles instantly on launch.
 
-- Accept / Decline Actions
+- **Profile Image Caching**
+  - Profile images are loaded and cached using **Kingfisher**.
+  - Cached images improve scrolling performance.
+  - Images remain available offline once loaded.
+
+- **Accept / Decline Actions**
   - Users can accept ✅ or decline ❌ a profile.
   - Once a decision is made, buttons are hidden and replaced by a status badge:
-    - Green “Accepted”
-    - Red “Declined”
+    - 🟢 **Accepted**
+    - 🔴 **Declined**
 
-- Reset
+- **Reset**
   - Reset clears all stored profiles and reloads fresh data.
 
 
+
 ## Architecture & Tech Stack
-  - SwiftUI for UI
-  - Combine for reactive data binding
-  - Core Data for persistence
-  - MVVM Architecture
-  - AsyncImage for profile images
-  - Pagination Handling
-  - Offline Sync Service (queue actions if no internet)
+- **SwiftUI** for UI
+- **Combine** for reactive data binding
+- **Core Data** for persistence
+- **MVVM** architecture
+- **Kingfisher** for image loading & caching
+- **Pagination handling** for API data
+- **Offline sync service** (queue actions if no internet)
 
 ## 📂 Project Structure
 
