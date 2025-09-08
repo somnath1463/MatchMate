@@ -8,45 +8,67 @@
 import Foundation
 import Combine
 import CoreData
+import os
+
+enum UserStatus: Int16 {
+    case none = 0
+    case accepted = 1
+    case declined = 2
+}
 
 final class MatchListViewModel: ObservableObject {
 
-    // Published properties for UI binding
-    @Published var profiles: [UserProfileViewData] = []
-    @Published var isLoading = false
+    // MARK: - Published properties (UI binding)
+    @Published private(set) var profiles: [UserProfileViewData] = []
+    @Published private(set) var isLoading = false
     @Published var errorMessage: String?
-    @Published var hasMorePages = true
+    @Published private(set) var hasMorePages = true
 
-    // Private state
+    // MARK: - Private state
     private var currentPage = 1
     private let pageSize = 10
     private var cancellables = Set<AnyCancellable>()
-
-    // Dependencies
-    private let persistence = PersistenceController.shared
-    private let api = APIService.shared
-    private let syncService = SyncService()
-    private var updatingIds = Set<String>()           // track currently-updating items
+    private var updatingIds = Set<String>()
     private let updateLockQueue = DispatchQueue(label: "MatchListViewModel.updateLock")
+    private let logger = Logger(subsystem: "com.matchmate", category: "MatchListViewModel")
 
-    init() {
+    // MARK: - Dependencies
+    private let persistence: PersistenceController
+    private let api: APIServiceProtocol
+    private let syncService: SyncService
+
+    // MARK: - Init
+    init(
+        persistence: PersistenceController = .shared,
+        api: APIServiceProtocol = APIService.shared,
+        syncService: SyncService = SyncService()
+    ) {
+        self.persistence = persistence
+        self.api = api
+        self.syncService = syncService
+        
         loadCachedProfiles()
         let lastPage = persistence.getMaxFetchedPage()
         currentPage = lastPage > 0 ? lastPage : 1
         fetchPage(currentPage)
     }
 
+    deinit {
+        logger.debug("MatchListViewModel deinitialized, cancelling subscriptions")
+    }
+
     // MARK: - Data loading
 
     func loadCachedProfiles() {
         let ctx = persistence.container.viewContext
-        let fetch = NSFetchRequest<NSManagedObject>(entityName: "UserProfile")
+        let fetch: NSFetchRequest<UserProfile> = UserProfile.fetchRequest()
         fetch.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        
         do {
             let results = try ctx.fetch(fetch)
             self.profiles = results.map { UserProfileViewData(managedObject: $0) }
         } catch {
-            print("CoreData fetch error: \(error)")
+            logger.error("CoreData fetch error: \(error.localizedDescription)")
         }
     }
 
@@ -57,18 +79,18 @@ final class MatchListViewModel: ObservableObject {
         api.fetchUsers(page: page, results: pageSize)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { [weak self] comp in
-                guard let self = self else { return }
+                guard let self else { return }
                 self.isLoading = false
                 if case .failure(let err) = comp {
                     self.errorMessage = err.localizedDescription
+                    self.logger.error("Fetch users failed: \(err.localizedDescription)")
                 }
             }, receiveValue: { [weak self] users in
-                guard let self = self else { return }
+                guard let self else { return }
                 if users.isEmpty {
                     self.hasMorePages = false
                     return
                 }
-
                 self.persistence.upsertUsers(users, page: page) {
                     self.loadCachedProfiles()
                     self.currentPage = page
@@ -87,83 +109,79 @@ final class MatchListViewModel: ObservableObject {
     // MARK: - Accept / Decline
 
     func accept(_ userId: String) {
-        updateStatus(userId: userId, status: 1)
+        updateStatus(userId: userId, status: .accepted)
     }
+
     func decline(_ userId: String) {
-        updateStatus(userId: userId, status: 2)
+        updateStatus(userId: userId, status: .declined)
     }
 
-    private func updateStatus(userId: String, status: Int16) {
-        // Prevent simultaneous updates for same id
-        var shouldProceed = false
-        updateLockQueue.sync {
-            if !updatingIds.contains(userId) {
-                updatingIds.insert(userId)
-                shouldProceed = true
-            }
-        }
-
-        guard shouldProceed else {
-            print("[VM] Ignoring duplicate update for \(userId) -> \(status)")
+    private func updateStatus(userId: String, status: UserStatus) {
+        guard acquireUpdateLock(for: userId) else {
+            logger.debug("Ignoring duplicate update for \(userId) -> \(status.rawValue)")
             return
         }
-
+        
         // 1) Update in-memory model immediately so UI reflects change
         DispatchQueue.main.async {
             if let idx = self.profiles.firstIndex(where: { $0.id == userId }) {
-                var copy = self.profiles[idx]
-                copy = UserProfileViewData(
-                    id: copy.id,
-                    firstName: copy.firstName,
-                    lastName: copy.lastName,
-                    email: copy.email,
-                    age: copy.age,
-                    city: copy.city,
-                    state: copy.state,
-                    country: copy.country,
-                    pictureURL: copy.pictureURL,
-                    status: status
-                )
-                self.profiles[idx] = copy
-                print("[VM] In-memory profiles updated for \(userId) -> \(status)")
+                self.profiles[idx] = self.profiles[idx].copy(withStatus: status.rawValue)
+                self.logger.debug("Updated in-memory profiles for \(userId) -> \(status.rawValue)")
             }
         }
-
+        
         // 2) Persist in Core Data on background context
-        let ctx = persistence.container.viewContext
+        let ctx = persistence.container.newBackgroundContext()
         ctx.perform {
-            let fetch = NSFetchRequest<NSManagedObject>(entityName: "UserProfile")
+            let fetch: NSFetchRequest<UserProfile> = UserProfile.fetchRequest()
             fetch.predicate = NSPredicate(format: "id == %@", userId)
+            
             do {
-                if let profiles = try ctx.fetch(fetch) as? [NSManagedObject],
-                   let profile = profiles.first {
-                    profile.setValue(status, forKey: "status")
+                if let profile = try ctx.fetch(fetch).first {
+                    profile.status = status.rawValue
                     try ctx.save()
-                    print("[VM] Persisted \(userId) -> \(status) to CoreData")
+                    self.logger.debug("Persisted \(userId) -> \(status.rawValue) to CoreData")
                 } else {
-                    print("[VM] No CoreData profile found for \(userId) when persisting status")
+                    self.logger.warning("No CoreData profile found for \(userId)")
                 }
             } catch {
-                print("[VM] Update status error: \(error)")
+                self.logger.error("Update status error for \(userId): \(error.localizedDescription)")
             }
-
-            // queue offline sync if needed
+            
+            // Offline sync if network unavailable
             if NetworkMonitor.shared.isConnected {
-                // call server when available (no-op for randomuser demo)
-                print("[VM] Network available — would sync to server for \(userId)")
+                self.logger.debug("Network available — would sync to server for \(userId)")
             } else {
-                self.syncService.queueAction(userId: userId, status: status)
-                print("[VM] Network unavailable — queued pending action for \(userId) -> \(status)")
+                self.syncService.queueAction(userId: userId, status: status.rawValue)
+                self.logger.debug("Network unavailable — queued action for \(userId) -> \(status.rawValue)")
             }
-
-            // release lock after small delay to avoid race conditions / double-fire
+            
+            // Release lock
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                self.updateLockQueue.sync {
-                    self.updatingIds.remove(userId)
-                }
-                print("[VM] Released updating lock for \(userId)")
+                self.releaseUpdateLock(for: userId)
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    private func acquireUpdateLock(for id: String) -> Bool {
+        var proceed = false
+        updateLockQueue.sync {
+            if !updatingIds.contains(id) {
+                updatingIds.insert(id)
+                proceed = true
+            }
+        }
+        return proceed
+    }
+
+    private func releaseUpdateLock(for id: String) {
+        _ = updateLockQueue.sync {
+            updatingIds.remove(id)
+        }
+
+        logger.debug("Released updating lock for \(id)")
     }
 
     func clearAllUsers() {
@@ -175,5 +193,23 @@ final class MatchListViewModel: ObservableObject {
                 self.fetchPage(1)
             }
         }
+    }
+}
+
+// MARK: - UserProfileViewData extension
+extension UserProfileViewData {
+    func copy(withStatus status: Int16) -> UserProfileViewData {
+        UserProfileViewData(
+            id: id,
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+            age: age,
+            city: city,
+            state: state,
+            country: country,
+            pictureURL: pictureURL,
+            status: UserStatus(rawValue: status) ?? .none
+        )
     }
 }

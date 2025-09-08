@@ -18,31 +18,35 @@ struct UserProfileViewData: Identifiable, Equatable {
     let state: String
     let country: String
     let pictureURL: String
-    let status: Int16
-
-    init(managedObject: NSManagedObject) {
-        self.id = managedObject.value(forKey: "id") as? String ?? UUID().uuidString
-        self.firstName = managedObject.value(forKey: "firstName") as? String ?? ""
-        self.lastName = managedObject.value(forKey: "lastName") as? String ?? ""
-        self.email = managedObject.value(forKey: "email") as? String ?? ""
-        self.age = Int(managedObject.value(forKey: "age") as? Int16 ?? 0)
-        self.city = managedObject.value(forKey: "city") as? String ?? ""
-        self.state = managedObject.value(forKey: "state") as? String ?? ""
-        self.country = managedObject.value(forKey: "country") as? String ?? ""
-        self.pictureURL = managedObject.value(forKey: "pictureURL") as? String ?? ""
-        self.status = (managedObject.value(forKey: "status") as? NSNumber)?.int16Value ?? 0
+    let status: UserStatus
+    
+    // MARK: - Init from CoreData model
+    init(managedObject: UserProfile) {
+        self.id = managedObject.id ?? UUID().uuidString
+        self.firstName = managedObject.firstName ?? ""
+        self.lastName = managedObject.lastName ?? ""
+        self.email = managedObject.email ?? ""
+        self.age = Int(managedObject.age)
+        self.city = managedObject.city ?? ""
+        self.state = managedObject.state ?? ""
+        self.country = managedObject.country ?? ""
+        self.pictureURL = managedObject.pictureURL ?? ""
+        self.status = UserStatus(rawValue: managedObject.status) ?? .none
     }
-
-    init(id: String,
-         firstName: String,
-         lastName: String,
-         email: String,
-         age: Int, city:
-         String,
-         state: String,
-         country: String,
-         pictureURL: String,
-         status: Int16) {
+    
+    // MARK: - Manual init
+    init(
+        id: String,
+        firstName: String,
+        lastName: String,
+        email: String,
+        age: Int,
+        city: String,
+        state: String,
+        country: String,
+        pictureURL: String,
+        status: UserStatus
+    ) {
         self.id = id
         self.firstName = firstName
         self.lastName = lastName
@@ -53,5 +57,21 @@ struct UserProfileViewData: Identifiable, Equatable {
         self.country = country
         self.pictureURL = pictureURL
         self.status = status
+    }
+    
+    // MARK: - Helpers
+    func copy(withStatus status: UserStatus) -> UserProfileViewData {
+        UserProfileViewData(
+            id: id,
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+            age: age,
+            city: city,
+            state: state,
+            country: country,
+            pictureURL: pictureURL,
+            status: status
+        )
     }
 }

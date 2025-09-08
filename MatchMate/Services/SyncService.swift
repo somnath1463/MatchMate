@@ -7,54 +7,58 @@
 
 import CoreData
 import Combine
+import os
 
 final class SyncService {
     private let persistence: PersistenceController
-    private var cancellable: AnyCancellable?
-
+    private var cancellables = Set<AnyCancellable>()
+    private let logger = Logger(subsystem: "com.matchmate", category: "SyncService")
+    
     init(persistence: PersistenceController = .shared) {
         self.persistence = persistence
-        cancellable = NetworkMonitor.shared.status
+        NetworkMonitor.shared.status
             .sink { [weak self] isConnected in
                 if isConnected { self?.processPendingActions() }
             }
+            .store(in: &cancellables)
     }
-
+    
     func queueAction(userId: String, status: Int16) {
         let ctx = persistence.container.viewContext
         ctx.perform {
-            let ent = NSEntityDescription.insertNewObject(forEntityName: "PendingAction", into: ctx)
-            ent.setValue(UUID(), forKey: "id")
-            ent.setValue(userId, forKey: "userId")
-            ent.setValue(status, forKey: "status")
-            ent.setValue(Date(), forKey: "createdAt")
-            do { try ctx.save() } catch { print("Queue action failed: \(error)") }
+            let action = PendingAction(context: ctx) // ✅ Use generated NSManagedObject subclass
+            action.id = UUID()
+            action.userId = userId
+            action.status = status
+            action.createdAt = Date()
+            
+            do {
+                try ctx.save()
+            } catch {
+                self.logger.error("Queue action failed: \(error.localizedDescription)")
+            }
         }
     }
-
+    
     private func processPendingActions() {
         let ctx = persistence.container.viewContext
         ctx.perform {
-            let fetch = NSFetchRequest<NSManagedObject>(entityName: "PendingAction")
+            let fetch: NSFetchRequest<PendingAction> = PendingAction.fetchRequest()
             do {
                 let actions = try ctx.fetch(fetch)
                 for action in actions {
-                    guard let userId = action.value(forKey: "userId") as? String,
-                          let status = action.value(forKey: "status") as? Int16 else { continue }
-                    // For this fake API we can't send actions upstream.
-                    // For real API: call APIService to sync this decision.
-                    // We'll apply the action locally (mark user profile) and then delete pending action.
-                    let profileFetch = NSFetchRequest<NSFetchRequestResult>(entityName: "UserProfile")
-                    profileFetch.predicate = NSPredicate(format: "id == %@", userId)
-                    if let profiles = try ctx.fetch(profileFetch) as? [NSManagedObject],
-                       let profile = profiles.first {
-                        profile.setValue(status, forKey: "status")
+                    if let userId = action.userId {
+                        let profileFetch: NSFetchRequest<UserProfile> = UserProfile.fetchRequest()
+                        profileFetch.predicate = NSPredicate(format: "id == %@", userId)
+                        if let profile = try ctx.fetch(profileFetch).first {
+                            profile.status = action.status
+                        }
                     }
-                    ctx.delete(action) // remove pending action once applied
+                    ctx.delete(action)
                 }
                 try ctx.save()
             } catch {
-                print("Processing pending actions failed: \(error)")
+                self.logger.error("Processing pending actions failed: \(error.localizedDescription)")
             }
         }
     }

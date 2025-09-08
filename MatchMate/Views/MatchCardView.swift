@@ -16,19 +16,20 @@ struct MatchCardView: View {
     @State private var offset: CGFloat = 0
     @State private var isSwiping = false
 
-    var statusText: String? {
+    // MARK: - Status text & color
+    private var statusText: String? {
         switch profile.status {
-        case 1: return "Accepted"
-        case 2: return "Declined"
-        default: return nil
+        case .accepted: return "Accepted"
+        case .declined: return "Declined"
+        case .none: return nil
         }
     }
 
-    var statusColor: Color {
+    private var statusColor: Color {
         switch profile.status {
-        case 1: return Color.green.opacity(0.2)
-        case 2: return Color.red.opacity(0.2)
-        default: return Color.clear
+        case .accepted: return Color.green.opacity(0.2)
+        case .declined: return Color.red.opacity(0.2)
+        case .none: return Color.clear
         }
     }
 
@@ -49,7 +50,7 @@ struct MatchCardView: View {
                     .scaledToFill()
                     .frame(width: 90, height: 110)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-
+                
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(profile.firstName) \(profile.lastName)")
                         .font(.headline)
@@ -84,7 +85,7 @@ struct MatchCardView: View {
                             .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
-
+                    
                     Button(action: {
                         print("[UI] Accept tapped for \(profile.id)")
                         acceptAction(profile.id)
